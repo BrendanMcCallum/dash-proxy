@@ -123,13 +123,16 @@ class HasLogger(object):
 class DashProxy(HasLogger):
     retry_interval = 10
 
-    def __init__(self, mpd, output_dir, download, save_mpds=False):
+    def __init__(self, mpd, output_dir,
+                 download, headers, cookies, save_mpds=False):
         self.logger = logger
 
         self.mpd = mpd
         self.output_dir = output_dir
         self.download = download
         self.save_mpds = save_mpds
+        self.headers = headers
+        self.cookies = cookies
         self.i_refresh = 0
 
         self.downloaders = {}
@@ -147,7 +150,7 @@ class DashProxy(HasLogger):
         if after > 0:
             time.sleep(after)
 
-        r = requests.get(self.mpd)
+        r = requests.get(self.mpd, self.headers, self.cookies)
         if r.status_code < 200 or r.status_code >= 300:
             logger.log(
                 logging.WARNING,
@@ -213,7 +216,8 @@ class DashProxy(HasLogger):
             self.info("Starting a downloader for %s" % (rep_addr,))
             downloader = DashDownloader(self, rep_addr)
             self.downloaders[rep_addr] = downloader
-            downloader.handle_mpd(mpd, self.get_base_url(mpd))
+            downloader.handle_mpd(mpd, self.get_base_url(mpd),
+                                  self.headers, self.cookies)
 
     def write_output_mpd(self, mpd):
         self.info("Writing the update MPD file")
@@ -241,11 +245,11 @@ class DashDownloader(HasLogger):
 
         self.initialization_downloaded = False
 
-    def download_single(self, rep_addr):
+    def download_single(self, rep_addr, headers, cookies):
         dest = self.mpd.base_url(self.rep_addr).text
         dest_url = self.full_url(dest)
         self.info("download_single requesting %s from %s" % (dest, dest_url))
-        r = requests.get(dest_url)
+        r = requests.get(dest_url, headers, cookies)
         if r.status_code >= 200 and r.status_code < 300:
             self.write(dest, r.content)
         else:
@@ -254,14 +258,14 @@ class DashDownloader(HasLogger):
                 (dest_url, r.status_code)
             )
 
-    def handle_mpd(self, mpd, base_url):
+    def handle_mpd(self, mpd, base_url, headers, cookies):
         self.mpd_base_url = base_url
         self.mpd = MpdLocator(mpd)
         rep = self.mpd.representation(self.rep_addr)
         segment_template = self.mpd.segment_template(self.rep_addr)
 
         if segment_template is None:
-            self.download_single(self.rep_addr)
+            self.download_single(self.rep_addr, headers, cookies)
             return
 
         segment_timeline = self.mpd.segment_timeline(self.rep_addr)
@@ -270,7 +274,8 @@ class DashDownloader(HasLogger):
                                                   .get("initialization", "")
         if initialization_template and not self.initialization_downloaded:
             self.initialization_downloaded = True
-            self.download_template(initialization_template, rep)
+            self.download_template(initialization_template,
+                                   headers, cookies, rep)
 
         segments = copy.deepcopy(segment_timeline.findall("mpd:S", ns))
         for segment in segment_timeline.findall("mpd:S", ns):
@@ -299,11 +304,12 @@ class DashDownloader(HasLogger):
             next_time += int(segment.attrib.get("d", "0"))
             self.download_template(media_template, rep, segment)
 
-    def download_template(self, template, representation=None, segment=None):
+    def download_template(self, template, headers, cookies,
+                          representation=None, segment=None):
         dest = self.render_template(template, representation, segment)
         dest_url = self.full_url(dest)
         self.info("requesting %s from %s" % (dest, dest_url))
-        r = requests.get(dest_url)
+        r = requests.get(dest_url, headers, cookies)
         if r.status_code >= 200 and r.status_code < 300:
             self.write(dest, r.content)
         else:
@@ -351,6 +357,8 @@ def run(args):
         output_dir=args.output,
         download=args.download,
         save_mpds=args.save_individual_mpds,
+        headers=args.http_headers,
+        cookies=args.http_cookies
     )
     return proxy.run()
 
@@ -364,9 +372,23 @@ def main():
                         help="Retain downloaded segments")
     parser.add_argument("-o", "--output", metavar="DIR", default=".",
                         help="Directory for output")
+    parser.add_argument("-c", "--cookie-jar", metavar="FILE", default=".",
+                        help="Directory for output")
+    parser.add_argument("--http-header", metavar="KEY=VALUE", default=[],
+                        action='append', type=lambda kv: kv.split("="),
+                        dest='http_headers',
+                        help="A header to add to each HTTP request."\
+                             "Can be repeated to add multiple headers.")
+    parser.add_argument("--http-cookie", metavar="KEY=VALUE", default=[],
+                        action='append', type=lambda kv: kv.split("="),
+                        dest='http_cookies',
+                        help="A cookie to add to each HTTP request."\
+                             "Can be repeated to add multiple cookies.")
     parser.add_argument("--save-individual-mpds", action="store_true",
                         help="Save refereshed MPD manifests to file")
     args = parser.parse_args()
+    args.http_headers = dict(args.http_headers)
+    args.http_cookies = dict(args.http_cookies)
     run(args)
 
 
