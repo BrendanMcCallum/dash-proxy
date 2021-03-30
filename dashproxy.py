@@ -60,7 +60,9 @@ class RepAddr(object):
         self.representation_idx = representation_idx
 
     def __str__(self):
-        return "Representation (period=%d adaptation-set=%d representation=%d)" % (
+        return "Representation (period=%d "\
+               "adaptation-set=%d "\
+               "representation=%d)" % (
             self.period_idx,
             self.adaptation_set_idx,
             self.representation_idx,
@@ -72,25 +74,31 @@ class MpdLocator(object):
         self.mpd = mpd
 
     def base_url(self, rep_addr):
-        return self.representation(rep_addr).find("mpd:BaseURL", ns)
+        return self.representation(rep_addr)
+                   .find("mpd:BaseURL", ns)
 
     def representation(self, rep_addr):
-        return self.adaptation_set(rep_addr).findall("mpd:Representation", ns)[
+        return self.adaptation_set(rep_addr)
+                   .findall("mpd:Representation", ns)[
             rep_addr.representation_idx
         ]
 
     def segment_template(self, rep_addr):
-        rep_st = self.representation(rep_addr).find("mpd:SegmentTemplate", ns)
+        rep_st = self.representation(rep_addr)
+                     .find("mpd:SegmentTemplate", ns)
         if rep_st is not None:
             return rep_st
         else:
-            return self.adaptation_set(rep_addr).find("mpd:SegmentTemplate", ns)
+            return self.adaptation_set(rep_addr)
+                       .find("mpd:SegmentTemplate", ns)
 
     def segment_timeline(self, rep_addr):
-        return self.segment_template(rep_addr).find("mpd:SegmentTimeline", ns)
+        return self.segment_template(rep_addr)
+                   .find("mpd:SegmentTimeline", ns)
 
     def adaptation_set(self, rep_addr):
-        return self.mpd.findall("mpd:Period", ns)[rep_addr.period_idx].findall(
+        return self.mpd.findall("mpd:Period", ns)[rep_addr.period_idx]
+                   .findall(
             "mpd:AdaptationSet", ns
         )[rep_addr.adaptation_set_idx]
 
@@ -159,9 +167,8 @@ class DashProxy(HasLogger):
             base_url = baseUrl(location.text)
         baseUrlNode = mpd.find("mpd:BaseUrl", ns)
         if baseUrlNode:
-            if baseUrlNode.text.startswith("http://") or baseUrlNode.text.startswith(
-                "https://"
-            ):
+            if baseUrlNode.text.startswith("http://") or
+               baseUrlNode.text.startswith("https://"):
                 base_url = baseUrl(baseUrlNode.text)
             else:
                 base_url = base_url + baseUrlNode.text
@@ -173,7 +180,8 @@ class DashProxy(HasLogger):
         periods = mpd.findall("mpd:Period", ns)
         logger.log(logging.INFO, "mpd=%s" % (periods,))
         logger.log(
-            logging.VERBOSE, "Found %d periods choosing the 1st one" % (len(periods),)
+            logging.VERBOSE,
+            "Found %d periods choosing the 1st one" % (len(periods),)
         )
         period = periods[0]
         for as_idx, adaptation_set in enumerate(
@@ -209,7 +217,8 @@ class DashProxy(HasLogger):
 
     def write_output_mpd(self, mpd):
         self.info("Writing the update MPD file")
-        content = xml.etree.ElementTree.tostring(mpd, encoding="utf-8").decode("utf-8")
+        content = xml.etree.ElementTree.tostring(mpd, encoding="utf-8")
+                     .decode("utf-8")
         dest = os.path.join(self.output_dir, "manifest.mpd")
 
         with open(dest, "wt") as f:
@@ -241,7 +250,8 @@ class DashDownloader(HasLogger):
             self.write(dest, r.content)
         else:
             self.error(
-                "cannot download %s server returned %d" % (dest_url, r.status_code)
+                "cannot download %s server returned %d" %
+                (dest_url, r.status_code)
             )
 
     def handle_mpd(self, mpd, base_url):
@@ -256,7 +266,8 @@ class DashDownloader(HasLogger):
 
         segment_timeline = self.mpd.segment_timeline(self.rep_addr)
 
-        initialization_template = segment_template.attrib.get("initialization", "")
+        initialization_template = segment_template.attrib
+                                                  .get("initialization", "")
         if initialization_template and not self.initialization_downloaded:
             self.initialization_downloaded = True
             self.download_template(initialization_template, rep)
@@ -297,11 +308,13 @@ class DashDownloader(HasLogger):
             self.write(dest, r.content)
         else:
             self.error(
-                "cannot download %s server returned %d" % (dest_url, r.status_code)
+                "cannot download %s server returned %d" %
+                (dest_url, r.status_code)
             )
 
     def render_template(self, template, representation=None, segment=None):
-        template = template.replace("$RepresentationID$", "{representation_id}")
+        template = template.replace("$RepresentationID$",
+                                    "{representation_id}")
         template = template.replace("$Time$", "{time}")
         template = template.replace(
             "$Number%05d$", "{number}"
@@ -330,6 +343,7 @@ class DashDownloader(HasLogger):
         f.write(content)
         f.close()
 
+
 def run(args):
     logger.setLevel(logging.VERBOSE if args.verbose else logging.INFO)
     proxy = DashProxy(
@@ -354,6 +368,7 @@ def main():
                         help="Save refereshed MPD manifests to file")
     args = parser.parse_args()
     run(args)
+
 
 if __name__ == "__main__":
     main()
