@@ -330,13 +330,12 @@ class DashDownloader(HasLogger):
         f.write(content)
         f.close()
 
-
 def run(args):
-    logger.setLevel(logging.VERBOSE if args.v else logging.INFO)
+    logger.setLevel(logging.VERBOSE if args.verbose else logging.INFO)
     proxy = DashProxy(
         mpd=args.mpd,
-        output_dir=args.o,
-        download=args.d,
+        output_dir=args.output,
+        download=args.download,
         save_mpds=args.save_individual_mpds,
     )
     return proxy.run()
@@ -344,14 +343,17 @@ def run(args):
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("mpd")
-    parser.add_argument("-v", action="store_true")
-    parser.add_argument("-d", action="store_true")
-    parser.add_argument("-o", default=".")
-    parser.add_argument("--save-individual-mpds", action="store_true")
+    parser.add_argument("mpd", help="Link to MPD stream")
+    parser.add_argument("-v", "--verbose", action="store_true",
+                        help="Print various debugging information")
+    parser.add_argument("-d", "--download", action="store_true",
+                        help="Retain downloaded segments")
+    parser.add_argument("-o", "--output", metavar="DIR", default=".",
+                        help="Directory for output")
+    parser.add_argument("--save-individual-mpds", action="store_true",
+                        help="Save refereshed MPD manifests to file")
     args = parser.parse_args()
     run(args)
-
 
 if __name__ == "__main__":
     main()
